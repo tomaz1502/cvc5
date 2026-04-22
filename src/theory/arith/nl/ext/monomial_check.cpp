@@ -72,7 +72,7 @@ void MonomialCheck::init(const std::vector<Node>& xts)
 
 void MonomialCheck::checkInitialRefine(const std::vector<Node>& monomials)
 {
-  Trace("nl-ext") << "Get initial monomial zero-sign lemmas..." << std::endl;
+  Trace("nl-ext") << "Get initial monomial sign lemmas..." << std::endl;
   NodeManager* nm = nodeManager();
   for (const Node& a : monomials)
   {
@@ -83,13 +83,64 @@ void MonomialCheck::checkInitialRefine(const std::vector<Node>& monomials)
     d_initRefine.insert(a);
     Node zeroA = mkZero(a.getType());
     const std::vector<Node>& vla = d_data->d_mdb.getVariableList(a);
+
+    // (1) Zero-case: v = 0 => a = 0 for each distinct factor v of a.
     for (const Node& v : vla)
     {
       Node prem = v.eqNode(mkZero(v.getType()));
       Node conc = a.eqNode(zeroA);
       Node lemma = nm->mkNode(Kind::IMPLIES, prem, conc);
       Trace("nl-ext-lemma")
-          << "MonomialCheck::Lemma: " << lemma << " ; SIGN_INITIAL" << std::endl;
+          << "MonomialCheck::Lemma: " << lemma << " ; SIGN_INITIAL_ZERO"
+          << std::endl;
+      d_data->d_im.addPendingLemma(lemma, InferenceId::ARITH_NL_SIGN);
+    }
+
+    // (2) Strict-sign cases. For each distinct factor v of a:
+    //   - if v has even exponent, v^even is >= 0 so we only require v != 0;
+    //   - if v has odd exponent, the sign of v^odd matches sign(v).
+    // Enumerate all 2^k assignments of {>0, <0} over the odd-exponent
+    // variables; the sign of the monomial is +1 when an even number of them
+    // are negative, -1 otherwise.
+    std::vector<Node> oddVars;
+    std::vector<Node> evenNeq;
+    for (const Node& v : vla)
+    {
+      unsigned e = d_data->d_mdb.getExponent(a, v);
+      Node zeroV = mkZero(v.getType());
+      if (e % 2 == 0)
+      {
+        evenNeq.push_back(v.eqNode(zeroV).negate());
+      }
+      else
+      {
+        oddVars.push_back(v);
+      }
+    }
+    unsigned k = oddVars.size();
+    unsigned numPatterns = 1u << k;
+    for (unsigned mask = 0; mask < numPatterns; ++mask)
+    {
+      std::vector<Node> antec = evenNeq;
+      unsigned negCount = 0;
+      for (unsigned i = 0; i < k; ++i)
+      {
+        Node v = oddVars[i];
+        Node zeroV = mkZero(v.getType());
+        bool isNeg = ((mask >> i) & 1u) != 0;
+        antec.push_back(nm->mkNode(isNeg ? Kind::LT : Kind::GT, v, zeroV));
+        if (isNeg)
+        {
+          ++negCount;
+        }
+      }
+      Kind concK = (negCount % 2 == 0) ? Kind::GT : Kind::LT;
+      Node conc = nm->mkNode(concK, a, zeroA);
+      Node prem = antec.size() == 1 ? antec[0] : nm->mkAnd(antec);
+      Node lemma = nm->mkNode(Kind::IMPLIES, prem, conc);
+      Trace("nl-ext-lemma")
+          << "MonomialCheck::Lemma: " << lemma << " ; SIGN_INITIAL_STRICT"
+          << std::endl;
       d_data->d_im.addPendingLemma(lemma, InferenceId::ARITH_NL_SIGN);
     }
   }
