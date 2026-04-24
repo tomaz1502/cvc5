@@ -100,8 +100,8 @@ void NonlinearExtension::presolve()
   }
   // Collect all nonlinear multiplications that were preregistered. At this
   // point preprocessing is complete, so these cover every monomial that will
-  // ever be asserted from the input (monomials introduced later by waiting
-  // lemmas are handled by NL_MONOMIAL_SIGN_INITIAL during runStrategy).
+  // ever be asserted from the input. Monomials introduced later (e.g. by
+  // flattening or factoring lemmas) are handled reactively by checkSign.
   std::vector<Node> xtsAll;
   d_extTheory.getTerms(xtsAll);
   std::vector<Node> monomials;
@@ -118,6 +118,11 @@ void NonlinearExtension::presolve()
     return;
   }
   d_monomialSlv.checkInitialRefine(monomials);
+  // Flush the pending lemmas immediately. TheoryArith::postCheck clears
+  // d_pendingLem at the start of every full-effort check to drop stale NL
+  // refinement lemmas, so anything left in the queue at that point would be
+  // discarded before it reaches the SAT solver.
+  d_im.doPendingLemmas();
 }
 
 void NonlinearExtension::computeRelevantAssertions(
