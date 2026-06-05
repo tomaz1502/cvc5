@@ -36,6 +36,33 @@ class MonomialCheck : protected EnvObj
 
   void init(const std::vector<Node>& xts);
 
+  /**
+   * Emit the preemptive magnitude lemmas for the pair (a, b), where vla and
+   * vlb are the (sorted) variable lists of a and b respectively. The caller
+   * must arrange the arguments so that |vla| <= |vlb|; pairs whose variable
+   * multisets differ by more than one element are ignored.
+   *
+   * Two shapes produce lemmas (s_1, ..., s_k are the shared variables,
+   * deduplicated):
+   *   - 1-subset: large = small * v. Emits
+   *       |v| > 1 ^ s_1 != 0 ^ ... ^ s_k != 0  =>  |large| > |small|
+   *        1 > |v| ^ s_1 != 0 ^ ... ^ s_k != 0  =>  |small| > |large|
+   *       |v| = 1                              =>  |large| = |small|
+   *   - 1-substitution: a has one extra x where b has one extra y. Emits
+   *       |x| > |y| ^ s_1 != 0 ^ ... ^ s_k != 0  =>  |a| > |b|
+   *       |y| > |x| ^ s_1 != 0 ^ ... ^ s_k != 0  =>  |b| > |a|
+   *       |x| = |y|                              =>  |a| = |b|
+   * The per-factor nonzero conjunction matches the premise shape that
+   * ARITH_MULT_ABS_COMPARISON expects on each non-strict factor of the
+   * conclusion. The "<" forms are issued as the equivalent GT with both
+   * sides swapped, since ARITH_MULT_ABS_COMPARISON proves only GT and
+   * EQUAL conclusions.
+   */
+  void checkMonomialPair(const Node& a,
+                         const std::vector<Node>& vla,
+                         const Node& b,
+                         const std::vector<Node>& vlb);
+
   /** check initial monomial sign lemmas
    *
    * Eagerly adds the zero-sign lemma

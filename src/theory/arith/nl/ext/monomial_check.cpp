@@ -70,6 +70,164 @@ void MonomialCheck::init(const std::vector<Node>& xts)
   }
 }
 
+void MonomialCheck::checkMonomialPair(const Node& a,
+                                      const std::vector<Node>& vla,
+                                      const Node& b,
+                                      const std::vector<Node>& vlb)
+{
+  // vla and vlb are sorted *deduplicated* unique-variable lists. The
+  // multiplicity of each variable is in d_mdb's exponent map. We need the
+  // multiset symmetric difference, so we consult exponents while merging.
+  // Reject early on total degree: only differences of 0 or 1 are useful.
+  unsigned dega = d_data->d_mdb.getDegree(a);
+  unsigned degb = d_data->d_mdb.getDegree(b);
+  unsigned degDiff = dega > degb ? dega - degb : degb - dega;
+  if (degDiff > 1)
+  {
+    return;
+  }
+  // Walk the unique-variable lists in tandem. For each variable v, push
+  // (exp_a(v) - exp_b(v)) copies to onlyA when positive, similarly for
+  // onlyB. sharedUnique collects v iff v appears in both vla and vlb (i.e.,
+  // exp_a(v) >= 1 and exp_b(v) >= 1).
+  std::vector<Node> onlyA, onlyB, sharedUnique;
+  size_t i = 0, j = 0;
+  auto pushMany = [](std::vector<Node>& dst, const Node& v, unsigned n) {
+    for (unsigned k = 0; k < n; ++k) dst.push_back(v);
+  };
+  while (i < vla.size() && j < vlb.size())
+  {
+    if (vla[i] == vlb[j])
+    {
+      unsigned ea = d_data->d_mdb.getExponent(a, vla[i]);
+      unsigned eb = d_data->d_mdb.getExponent(b, vlb[j]);
+      if (ea > eb) pushMany(onlyA, vla[i], ea - eb);
+      else if (eb > ea) pushMany(onlyB, vlb[j], eb - ea);
+      sharedUnique.push_back(vla[i]);
+      ++i;
+      ++j;
+    }
+    else if (vla[i] < vlb[j])
+    {
+      pushMany(onlyA, vla[i], d_data->d_mdb.getExponent(a, vla[i]));
+      ++i;
+    }
+    else
+    {
+      pushMany(onlyB, vlb[j], d_data->d_mdb.getExponent(b, vlb[j]));
+      ++j;
+    }
+    if (onlyA.size() + onlyB.size() > 2) return;
+  }
+  while (i < vla.size())
+  {
+    pushMany(onlyA, vla[i], d_data->d_mdb.getExponent(a, vla[i]));
+    ++i;
+    if (onlyA.size() + onlyB.size() > 2) return;
+  }
+  while (j < vlb.size())
+  {
+    pushMany(onlyB, vlb[j], d_data->d_mdb.getExponent(b, vlb[j]));
+    ++j;
+    if (onlyA.size() + onlyB.size() > 2) return;
+  }
+
+  NodeManager* nm = nodeManager();
+  Node one = nm->mkConstInt(Rational(1));
+
+  // Per-factor nonzero conjunction over the shared unique variables. The
+  // walk above already yields unique entries, so no further dedup is
+  // needed.
+  std::vector<Node> nonzeros;
+  for (const Node& s : sharedUnique)
+  {
+    nonzeros.push_back(s.eqNode(mkZero(s.getType())).notNode());
+  }
+
+  // Classify by the multiset symmetric difference. Both subset directions
+  // are possible because the caller orders by unique-list size, which
+  // does not coincide with multiset containment.
+  bool aSubsetOfB = onlyA.empty() && onlyB.size() == 1;
+  bool bSubsetOfA = onlyB.empty() && onlyA.size() == 1;
+  bool isSubstitution = onlyA.size() == 1 && onlyB.size() == 1;
+
+  // The ArithNlCompareProofGenerator only handles GT and EQUAL
+  // conclusions, so the LT lemmas are emitted as the equivalent GT with
+  // both sides of the comparison swapped.
+  ProofGenerator* pg = d_ancPfGen.get();
+
+  if (aSubsetOfB || bSubsetOfA)
+  {
+    // 1-subset: large = small * v.
+    const Node& small = aSubsetOfB ? a : b;
+    const Node& large = aSubsetOfB ? b : a;
+    const Node& v = aSubsetOfB ? onlyB[0] : onlyA[0];
+    Node gtV1 = mkAndNotifyAbsLit(Kind::GT, v, one);
+    Node gt1V = mkAndNotifyAbsLit(Kind::GT, one, v);
+    Node eqV1 = mkAndNotifyAbsLit(Kind::EQUAL, v, one);
+    Node gtLS = mkAndNotifyAbsLit(Kind::GT, large, small);
+    Node gtSL = mkAndNotifyAbsLit(Kind::GT, small, large);
+    Node eqLS = mkAndNotifyAbsLit(Kind::EQUAL, large, small);
+    std::vector<Node> antGT{gtV1};
+    antGT.insert(antGT.end(), nonzeros.begin(), nonzeros.end());
+    std::vector<Node> antLT{gt1V};
+    antLT.insert(antLT.end(), nonzeros.begin(), nonzeros.end());
+    Node lem1 = nm->mkNode(Kind::IMPLIES, nm->mkAnd(antGT), gtLS);
+    Node lem2 = nm->mkNode(Kind::IMPLIES, nm->mkAnd(antLT), gtSL);
+    Node lem3 = nm->mkNode(Kind::IMPLIES, eqV1, eqLS);
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem1 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem2 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem3 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    d_data->d_im.addPendingLemma(
+        lem1, InferenceId::ARITH_NL_COMPARISON, pg);
+    d_data->d_im.addPendingLemma(
+        lem2, InferenceId::ARITH_NL_COMPARISON, pg);
+    d_data->d_im.addPendingLemma(
+        lem3, InferenceId::ARITH_NL_COMPARISON, pg);
+  }
+  else if (isSubstitution)
+  {
+    // 1-substitution: a has one extra copy of x where b has one extra y;
+    // all other factors agree multiset-wise.
+    const Node& x = onlyA[0];
+    const Node& y = onlyB[0];
+    Node gtXY = mkAndNotifyAbsLit(Kind::GT, x, y);
+    Node gtYX = mkAndNotifyAbsLit(Kind::GT, y, x);
+    Node eqXY = mkAndNotifyAbsLit(Kind::EQUAL, x, y);
+    Node gtAB = mkAndNotifyAbsLit(Kind::GT, a, b);
+    Node gtBA = mkAndNotifyAbsLit(Kind::GT, b, a);
+    Node eqAB = mkAndNotifyAbsLit(Kind::EQUAL, a, b);
+    std::vector<Node> antGT{gtXY};
+    antGT.insert(antGT.end(), nonzeros.begin(), nonzeros.end());
+    std::vector<Node> antLT{gtYX};
+    antLT.insert(antLT.end(), nonzeros.begin(), nonzeros.end());
+    Node lem1 = nm->mkNode(Kind::IMPLIES, nm->mkAnd(antGT), gtAB);
+    Node lem2 = nm->mkNode(Kind::IMPLIES, nm->mkAnd(antLT), gtBA);
+    Node lem3 = nm->mkNode(Kind::IMPLIES, eqXY, eqAB);
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem1 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem2 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    Trace("nl-ext-lemma")
+        << "MonomialCheck::Lemma: " << lem3 << " ; MAGNITUDE_INITIAL"
+        << std::endl;
+    d_data->d_im.addPendingLemma(
+        lem1, InferenceId::ARITH_NL_COMPARISON, pg);
+    d_data->d_im.addPendingLemma(
+        lem2, InferenceId::ARITH_NL_COMPARISON, pg);
+    d_data->d_im.addPendingLemma(
+        lem3, InferenceId::ARITH_NL_COMPARISON, pg);
+  }
+}
+
 void MonomialCheck::checkInitialRefine(const std::vector<Node>& monomials)
 {
   Trace("nl-ext") << "Get initial monomial zero-sign lemmas..." << std::endl;
@@ -98,6 +256,22 @@ void MonomialCheck::checkInitialRefine(const std::vector<Node>& monomials)
         proof->addStep(lemma, ProofRule::SCOPE, {conc}, {prem});
       }
       d_data->d_im.addPendingLemma(lemma, InferenceId::ARITH_NL_SIGN, proof);
+    }
+  }
+  for (unsigned i = 0; i < monomials.size(); ++i)
+  {
+    std::vector<Node> vla = d_data->d_mdb.getVariableList(monomials[i]);
+    for (unsigned j = i + 1; j < monomials.size(); ++j)
+    {
+      std::vector<Node> vlb = d_data->d_mdb.getVariableList(monomials[j]);
+      if (vla.size() <= vlb.size())
+      {
+        checkMonomialPair(monomials[i], vla, monomials[j], vlb);
+      }
+      else
+      {
+        checkMonomialPair(monomials[j], vlb, monomials[i], vla);
+      }
     }
   }
 }
