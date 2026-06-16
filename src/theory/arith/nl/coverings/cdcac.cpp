@@ -25,6 +25,8 @@
 
 using namespace cvc5::internal::kind;
 
+#define dbg(x) std::cout << "[" << __func__ << "] " << #x << " = " << x << "\n";
+
 namespace std {
 /** Generic streaming operator for std::vector. */
 template <typename T>
@@ -130,14 +132,18 @@ const std::vector<poly::Variable>& CDCAC::getVariableOrdering() const
 
 std::vector<CACInterval> CDCAC::getUnsatIntervals(std::size_t cur_variable)
 {
+  dbg(cur_variable);
   std::vector<CACInterval> res;
   LazardEvaluation le(statisticsRegistry(), nodeManager()->getPolyContext());
   prepareRootIsolation(le, cur_variable);
-  for (const auto& c : d_constraints.getConstraints())
+  for (const auto& [p, sc, n] : d_constraints.getConstraints())
   {
-    const poly::Polynomial& p = std::get<0>(c);
-    poly::SignCondition sc = std::get<1>(c);
-    const Node& n = std::get<2>(c);
+    // const poly::Polynomial& p = std::get<0>(c);
+    // poly::SignCondition sc = std::get<1>(c);
+    // const Node& n = std::get<2>(c);
+    dbg(p);
+    dbg(sc);
+    dbg(n);
 
     if (main_variable(p) != d_variableOrdering[cur_variable])
     {
@@ -552,9 +558,11 @@ CACInterval CDCAC::intervalFromCharacterization(
   }
 }
 
+
 std::vector<CACInterval> CDCAC::getUnsatCoverImpl(std::size_t curVariable,
                                                   bool returnFirstInterval)
 {
+  // dbg(curVariable);
   d_env.getResourceManager()->spendResource(Resource::ArithNlCoveringStep);
   Trace("cdcac") << "Looking for unsat cover for "
                  << get_stream_variable(d_variableOrdering[curVariable])
