@@ -27,6 +27,8 @@
 #include "theory/theory_model.h"
 #include "util/rational.h"
 
+#include <chrono>
+
 using namespace cvc5::internal::kind;
 
 namespace cvc5::internal {
@@ -547,7 +549,15 @@ void NonlinearExtension::runStrategy(const std::vector<Node>& assertions,
     {
       case InferStep::BREAK: stop = d_im.hasPendingLemma(); break;
       case InferStep::FLUSH_WAITING_LEMMAS: d_im.flushWaitingLemmas(); break;
-      case InferStep::COVERINGS_FULL: d_covSlv.checkFull(); break;
+      case InferStep::COVERINGS_FULL: {
+        auto start = std::chrono::steady_clock::now();
+        d_covSlv.checkFull();
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = end - start;
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+        Trace("cdcac::profiling") << "full coverings took " << elapsed_ms << " microseconds.\n";
+        break;
+      }
       case InferStep::COVERINGS_INIT: d_covSlv.initLastCall(assertions); break;
       case InferStep::NL_FACTORING:
         d_factoringSlv.check(assertions, false_asserts);

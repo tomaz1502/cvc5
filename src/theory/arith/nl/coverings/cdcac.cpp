@@ -23,9 +23,11 @@
 #include "theory/rewriter.h"
 #include "util/resource_manager.h"
 
+#include <chrono>
+
 using namespace cvc5::internal::kind;
 
-#define dbg(x) std::cout << "[" << __func__ << "] " << #x << " = " << x << "\n";
+#define dbg(x) Trace("cdcac::tomaz") << "[" << __func__ << "] " << #x << " = " << x << "\n";
 
 namespace std {
 /** Generic streaming operator for std::vector. */
@@ -136,11 +138,11 @@ std::vector<CACInterval> CDCAC::getUnsatIntervals(std::size_t cur_variable)
   std::vector<CACInterval> res;
   LazardEvaluation le(statisticsRegistry(), nodeManager()->getPolyContext());
   prepareRootIsolation(le, cur_variable);
-  for (const auto& [p, sc, n] : d_constraints.getConstraints())
+  for (const auto& c : d_constraints.getConstraints())
   {
-    // const poly::Polynomial& p = std::get<0>(c);
-    // poly::SignCondition sc = std::get<1>(c);
-    // const Node& n = std::get<2>(c);
+    const poly::Polynomial& p = std::get<0>(c);
+    poly::SignCondition sc = std::get<1>(c);
+    const Node& n = std::get<2>(c);
     dbg(p);
     dbg(sc);
     dbg(n);
@@ -166,7 +168,12 @@ std::vector<CACInterval> CDCAC::getUnsatIntervals(std::size_t cur_variable)
     }
     else
     {
+      auto start = std::chrono::steady_clock::now();
       intervals = poly::infeasible_regions(p, d_assignment, sc);
+      auto end = std::chrono::steady_clock::now();
+      auto elapsed = end - start;
+      auto elapsed_ms = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+      Trace("cdcac::profiling") << "infeasible_regions took " << elapsed_ms << " microseconds.\n";
     }
     for (const auto& i : intervals)
     {
@@ -361,6 +368,16 @@ PolyVector CDCAC::requiredCoefficients(const poly::Polynomial& p)
   }
 }
 
+#define add_and_profile(c) \
+      do { \
+        auto start = std::chrono::steady_clock::now(); \
+        res.add(c); \
+        auto end = std::chrono::steady_clock::now(); \
+        auto elapsed = end - start; \
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count(); \
+        Trace("cdcac::profiling") << #c << " took " << elapsed_ms << " microseconds.\n"; \
+      } while(0);
+
 PolyVector CDCAC::constructCharacterization(std::vector<CACInterval>& intervals)
 {
   Assert(!intervals.empty()) << "A covering can not be empty";
@@ -389,14 +406,17 @@ PolyVector CDCAC::constructCharacterization(std::vector<CACInterval>& intervals)
       Trace("cdcac::projection")
           << "Discriminant of " << p << " -> " << discriminant(p) << std::endl;
       // Add all discriminants
-      res.add(discriminant(p));
+
+      // res.add(discriminant(p));
+      add_and_profile(discriminant(p));
 
       // Add pairwise resultants
       for (const auto& q : i.d_mainPolys)
       {
         // avoid symmetric duplicates
         if (p >= q) continue;
-        res.add(resultant(p, q));
+        add_and_profile(resultant(p, q));
+        // res.add(resultant(p, q));
       }
 
       for (const auto& q : requiredCoefficients(p))
@@ -413,7 +433,8 @@ PolyVector CDCAC::constructCharacterization(std::vector<CACInterval>& intervals)
         if (!hasRootBelow(q, get_lower(i.d_interval))) continue;
         Trace("cdcac::projection") << "Resultant of " << p << " and " << q
                                    << " -> " << resultant(p, q) << std::endl;
-        res.add(resultant(p, q));
+        add_and_profile(resultant(p, q));
+        // res.add(resultant(p, q));
       }
       for (const auto& q : i.d_upperPolys)
       {
@@ -422,7 +443,8 @@ PolyVector CDCAC::constructCharacterization(std::vector<CACInterval>& intervals)
         if (!hasRootAbove(q, get_upper(i.d_interval))) continue;
         Trace("cdcac::projection") << "Resultant of " << p << " and " << q
                                    << " -> " << resultant(p, q) << std::endl;
-        res.add(resultant(p, q));
+        add_and_profile(resultant(p, q));
+        // res.add(resultant(p, q));
       }
     }
   }
@@ -436,7 +458,8 @@ PolyVector CDCAC::constructCharacterization(std::vector<CACInterval>& intervals)
       {
         Trace("cdcac::projection") << "Resultant of " << p << " and " << q
                                    << " -> " << resultant(p, q) << std::endl;
-        res.add(resultant(p, q));
+        add_and_profile(resultant(p, q));
+        // res.add(resultant(p, q));
       }
     }
   }
