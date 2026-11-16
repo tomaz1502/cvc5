@@ -1261,6 +1261,9 @@ set(regress_0_tests
   regress0/nl/dd.polypaver-bench-exp-3d-chunk-0067.smt2
   regress0/nl/dd.sin-cos-346-b-chunk-0210.smt2
   regress0/nl/dd.sin-cos-346-b-chunk-0210_unsat.smt2
+  regress0/nl/div-ideal-cancellation-cov.smt2
+  regress0/nl/div-ideal-cancellation.smt2
+  regress0/nl/div-ideal-no-coprime-sat.smt2
   regress0/nl/exp-monotonic-nonconst-mv.smt2
   regress0/nl/iand0.smt2
   regress0/nl/iand-no-init.smt2
@@ -3264,6 +3267,7 @@ set(regress_1_tests
   regress1/nl/cos1-tc.smt2
   regress1/nl/disj-eval.smt2
   regress1/nl/dist-big.smt2
+  regress1/nl/div-ideal-mod-distrib.smt2
   regress1/nl/div-mod-partial.smt2
   regress1/nl/exp-4.5-lt.smt2
   regress1/nl/exp-approx.smt2

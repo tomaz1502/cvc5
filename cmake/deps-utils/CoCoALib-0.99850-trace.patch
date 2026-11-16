@@ -97,7 +97,7 @@ index e0e713b..156461b 100755
    echo "$mesg"
    echo "$dashes"
 diff --git a/include/CoCoA/TmpGPoly.H b/include/CoCoA/TmpGPoly.H
-index 4c4d51e..b57fc17 100644
+index 4c4d51e..0053bc7 100644
 --- a/include/CoCoA/TmpGPoly.H
 +++ b/include/CoCoA/TmpGPoly.H
 @@ -29,6 +29,7 @@
@@ -108,14 +108,16 @@ index 4c4d51e..b57fc17 100644
  #include<list>
  // using std::list; // for GPolyList; GPolyPtrList;
  #include<vector>
-@@ -46,6 +47,12 @@ enum ClearMarker {clear};
+@@ -46,6 +47,14 @@ enum ClearMarker {clear};
  
  class GPoly;
  
 +extern bool handlersEnabled;
 +extern std::function<void(ConstRefRingElem p, ConstRefRingElem q, ConstRefRingElem s)> sPolyHandler;
 +extern std::function<void(ConstRefRingElem p)> reductionStartHandler;
-+extern std::function<void(ConstRefRingElem q)> reductionStepHandler;
++// q is the reducer; t is the power product of the term of the polynomial
++// under reduction that this step cancels (a multiple of LPP(q)).
++extern std::function<void(ConstRefRingElem q, ConstRefPPMonoidElem t)> reductionStepHandler;
 +extern std::function<void(ConstRefRingElem r)> reductionEndHandler;
 +
  
@@ -157,18 +159,63 @@ index c5d0a0a..36d6d2b 100644
    }
  
 diff --git a/src/AlgebraicCore/SparsePolyOps-reduce.C b/src/AlgebraicCore/SparsePolyOps-reduce.C
-index 30e407a..b8789e2 100644
+index 30e407a..73fb83d 100644
 --- a/src/AlgebraicCore/SparsePolyOps-reduce.C
 +++ b/src/AlgebraicCore/SparsePolyOps-reduce.C
-@@ -145,6 +145,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+@@ -127,6 +127,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+     while ( (g = FindReducer(F, v)) != nullptr )
+     {
+       //      std::cout << "ReduceActiveLM no sugar: *g is " << *g << std::endl;
++      if ( handlersEnabled ) reductionStepHandler(poly(*g), ActiveLPP(F));
+       F->myReduce(poly(*g), NumTerms(*g));
+     }
+   }
+@@ -144,6 +145,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+       //      std::cout << "ReduceActiveLM before s->myUpdate" << std::endl;
        s->myUpdate(F, *g);
        //      std::cout << "ReduceActiveLM after s->myUpdate" << std::endl;
++      if ( handlersEnabled ) reductionStepHandler(poly(*g), ActiveLPP(F));
        F->myReduce(poly(*g), NumTerms(*g));
-+      if ( handlersEnabled ) reductionStepHandler(poly(*g));
      }//while
    }//ReduceActiveLM
+@@ -192,6 +194,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+       if ( (ComponentF==Componentg && IsDivisibleFast(PMF, PMg) ) )
+       {
+         s->myUpdate(F, g);
++        if ( handlersEnabled ) reductionStepHandler(poly(g), ActiveLPP(F));
+         F->myReduce(poly(g), NumTerms(g));// MAX: here the real work is done
+       }
+       else
+@@ -258,6 +261,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+   {
+     CoCoA_ASSERT( !IsZero(*this) );
+     if ( LPPForOrd(*this) < LPPForOrd(g) ) return;
++    if ( handlersEnabled ) reductionStartHandler(myPoly());
+     // geobucket because reduce(F, g) might make many reductions by g
+     ReductionCog F = ChooseReductionCogGeobucket(myGRingInfo());
+     F->myAssignReset(myPolyValue, myNumTerms);
+@@ -265,24 +269,28 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+     reduce(F, g);
+     F->myRelease(myPolyValue);
+     myNumTerms = NumTerms(myPoly()); // LPP,Deg,Comp are the same
++    if ( handlersEnabled ) reductionEndHandler(myPoly());
+   }
  
-@@ -283,6 +284,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+ 
+   void GPoly::myReduceTail(const Reductors& theReductors)
+   {
+     CoCoA_ASSERT( !IsZero(*this) );
++    if ( handlersEnabled ) reductionStartHandler(myPoly());
+     ReductionCog F = ChooseReductionCogGeobucket(myGRingInfo());
+     F->myAssignReset(myPolyValue, myNumTerms);
+     F->myMoveToNextLM();
+     reduce(F, mySugar, theReductors);
+     F->myRelease(myPolyValue);
+     myNumTerms = NumTerms(myPoly()); // LPP,Deg,Comp are the same
++    if ( handlersEnabled ) reductionEndHandler(myPoly());
+   }
+ 
+ 
    void GPoly::myReduce(const Reductors& theReductors)
    {
      if ( IsZero(*this) ) return;
@@ -176,7 +223,7 @@ index 30e407a..b8789e2 100644
      ReductionCog F = ChooseReductionCogGeobucket(myGRingInfo());
      //    std::cout << "myreduce1: F is " << F << std::endl;
      F->myAssignReset(myPolyValue, myNumTerms); // myPolyValue gets 0
-@@ -298,6 +300,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
+@@ -298,6 +306,7 @@ degree HereForProfilingOnlyWDeg(ConstRefPPMonoidElem cofactor1)
      if ( !IsZero(*this) && !IsOne(myLCValue) ) // makes myPolyValue monic
        if ( myGRingInfo().myCoeffRingType()==CoeffEncoding::Field )
          myGRingInfo().myNewSPR()->myDivByCoeff(raw(myPolyValue), raw(myLCValue));
@@ -185,7 +232,7 @@ index 30e407a..b8789e2 100644
      // if CoeffEncoding::FrFldOfGCDDomain myRelease makes poly content free
    }
 diff --git a/src/AlgebraicCore/TmpGPoly.C b/src/AlgebraicCore/TmpGPoly.C
-index 3163ca9..c10b8c2 100644
+index 3163ca9..8ebf8a5 100644
 --- a/src/AlgebraicCore/TmpGPoly.C
 +++ b/src/AlgebraicCore/TmpGPoly.C
 @@ -47,6 +47,11 @@ using std::vector;
@@ -195,7 +242,7 @@ index 3163ca9..c10b8c2 100644
 +  bool handlersEnabled = false;
 +  std::function<void(ConstRefRingElem p, ConstRefRingElem q, ConstRefRingElem s)> sPolyHandler = nullptr;
 +  std::function<void(ConstRefRingElem p)> reductionStartHandler = nullptr;
-+  std::function<void(ConstRefRingElem q)> reductionStepHandler = nullptr;
++  std::function<void(ConstRefRingElem q, ConstRefPPMonoidElem t)> reductionStepHandler = nullptr;
 +  std::function<void(ConstRefRingElem r)> reductionEndHandler = nullptr;
  
    //---------class GPoly-------------------------------

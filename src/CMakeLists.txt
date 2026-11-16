@@ -528,6 +528,10 @@ libcvc5_add_sources(
   theory/arith/nl/icp/icp_solver.h
   theory/arith/nl/icp/intersection.cpp
   theory/arith/nl/icp/intersection.h
+  theory/arith/nl/ideal/cofactor_basis.cpp
+  theory/arith/nl/ideal/cofactor_basis.h
+  theory/arith/nl/ideal/div_ideal_solver.cpp
+  theory/arith/nl/ideal/div_ideal_solver.h
   theory/arith/nl/iand_utils.cpp
   theory/arith/nl/iand_utils.h
   theory/arith/nl/nl_lemma_utils.cpp

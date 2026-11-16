@@ -30,6 +30,7 @@
 #include "theory/arith/nl/ext_theory_callback.h"
 #include "theory/arith/nl/iand_solver.h"
 #include "theory/arith/nl/icp/icp_solver.h"
+#include "theory/arith/nl/ideal/div_ideal_solver.h"
 #include "theory/arith/nl/nl_model.h"
 #include "theory/arith/nl/piand_solver.h"
 #include "theory/arith/nl/pow2_solver.h"
@@ -247,6 +248,8 @@ class NonlinearExtension : EnvObj
   TangentPlaneCheck d_tangentPlaneSlv;
   /** The coverings-based solver */
   CoveringsSolver d_covSlv;
+  /** Solver for ideal membership lemmas about integer division. */
+  DivIdealSolver d_divIdealSlv;
   /** The ICP-based solver */
   icp::ICPSolver d_icpSlv;
   /** The integer and solver

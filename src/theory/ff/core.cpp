@@ -62,7 +62,10 @@ void Tracer::setFunctionPointers()
   d_reductionStart =
       std::function([=](CoCoA::ConstRefRingElem p) { t->reductionStart(p); });
   d_reductionStep =
-      std::function([=](CoCoA::ConstRefRingElem p) { t->reductionStep(p); });
+      std::function([=](CoCoA::ConstRefRingElem p, CoCoA::ConstRefPPMonoidElem) {
+        // the cancelled power product is only needed for tracking cofactors
+        t->reductionStep(p);
+      });
   d_reductionEnd =
       std::function([=](CoCoA::ConstRefRingElem p) { t->reductionEnd(p); });
   Assert(!CoCoA::handlersEnabled);

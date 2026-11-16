@@ -80,6 +80,7 @@ const char* toString(InferenceId i)
       return "ARITH_NL_RES_INFER_BOUNDS";
     case InferenceId::ARITH_NL_TANGENT_PLANE: return "ARITH_NL_TANGENT_PLANE";
     case InferenceId::ARITH_NL_FLATTEN_MON: return "ARITH_NL_FLATTEN_MON";
+    case InferenceId::ARITH_NL_DIV_IDEAL: return "ARITH_NL_DIV_IDEAL";
     case InferenceId::ARITH_NL_T_SINE_SYMM: return "ARITH_NL_T_SINE_SYMM";
     case InferenceId::ARITH_NL_T_SINE_BOUNDARY_REDUCE:
       return "ARITH_NL_T_SINE_BOUNDARY_REDUCE";

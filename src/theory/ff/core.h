@@ -124,7 +124,8 @@ class Tracer
                      CoCoA::ConstRefRingElem)>
       d_sPoly{};
   std::function<void(CoCoA::ConstRefRingElem)> d_reductionStart{};
-  std::function<void(CoCoA::ConstRefRingElem)> d_reductionStep{};
+  std::function<void(CoCoA::ConstRefRingElem, CoCoA::ConstRefPPMonoidElem)>
+      d_reductionStep{};
   std::function<void(CoCoA::ConstRefRingElem)> d_reductionEnd{};
 
   /** True between `setFunctionPointers()` and `unsetFunctionPointers()`. */

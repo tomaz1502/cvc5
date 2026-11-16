@@ -44,6 +44,7 @@ std::ostream& operator<<(std::ostream& os, InferStep step)
     case InferStep::POW2_INITIAL: return os << "POW2_INITIAL";
     case InferStep::ICP: return os << "ICP";
     case InferStep::NL_INIT: return os << "NL_INIT";
+    case InferStep::NL_DIV_IDEAL: return os << "NL_DIV_IDEAL";
     case InferStep::NL_MONOMIAL_INFER_BOUNDS:
       return os << "NL_MONOMIAL_INFER_BOUNDS";
     case InferStep::NL_MONOMIAL_MAGNITUDE0:
@@ -144,6 +145,14 @@ void Strategy::initializeStrategy(const Options& options)
   if (options.arith.nlExtFlattenMon)
   {
     one << InferStep::NL_FLATTEN_MON << InferStep::BREAK;
+  }
+  if (options.arith.nlDivIdeal)
+  {
+    // Ideal membership reasoning for integer division and modulus. This runs
+    // before the incremental linearization steps that need not terminate
+    // (tangent planes) and before the coverings solver, which is given the
+    // facts that this step derives.
+    one << InferStep::NL_DIV_IDEAL << InferStep::BREAK;
   }
   if (options.arith.nlExt == options::NlExtMode::FULL)
   {

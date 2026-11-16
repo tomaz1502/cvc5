@@ -399,6 +399,14 @@ name   = "Arithmetic Theory"
   help       = "use inference schema based on flattening monomials"
 
 [[option]]
+  name       = "nlDivIdeal"
+  category   = "expert"
+  long       = "nl-div-ideal"
+  type       = "bool"
+  default    = "false"
+  help       = "use ideal membership (Groebner bases) to infer that integer divisions by the same non-constant divisor have equal remainders; requires a build with CoCoA"
+
+[[option]]
   name       = "nlExtTangentPlanes"
   category   = "regular"
   long       = "nl-ext-tplanes"

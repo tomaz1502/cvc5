@@ -16,5 +16,11 @@ int main()
 {
     std::cout << "CoCoA::handlersEnabled = ";
     std::cout << CoCoA::handlersEnabled << std::endl;
+    // The reduction step handler must also take the power product that the
+    // step cancels. This fails to compile with a CoCoA that only has the
+    // older version of the patch.
+    CoCoA::reductionStepHandler = [](CoCoA::ConstRefRingElem,
+                                     CoCoA::ConstRefPPMonoidElem) {};
+    CoCoA::reductionStepHandler = nullptr;
     return 0;
 }

@@ -54,6 +54,7 @@ NonlinearExtension::NonlinearExtension(Env& env, TheoryArith& containing)
       d_splitZeroSlv(d_env, &d_extState),
       d_tangentPlaneSlv(d_env, &d_extState),
       d_covSlv(d_env, d_im, d_model),
+      d_divIdealSlv(d_env, d_astate, d_im, d_model),
       d_icpSlv(d_env, d_im),
       d_iandSlv(env, d_im, d_model),
       d_piandSlv(env, d_im, d_model),
@@ -597,8 +598,27 @@ void NonlinearExtension::runStrategy(const std::vector<Node>& assertions,
     {
       case InferStep::BREAK: stop = d_im.hasPendingLemma(); break;
       case InferStep::FLUSH_WAITING_LEMMAS: d_im.flushWaitingLemmas(); break;
-      case InferStep::COVERINGS_FULL: d_covSlv.checkFull(); break;
-      case InferStep::COVERINGS_INIT: d_covSlv.initLastCall(assertions); break;
+      case InferStep::COVERINGS_FULL:
+        d_covSlv.checkFull();
+        if (d_im.hasPendingLemma())
+        {
+          // the lemma may depend on the facts we added to the assertions
+          d_divIdealSlv.sendDerivedLemmas();
+        }
+        break;
+      case InferStep::COVERINGS_INIT:
+      {
+        // The coverings solver is also given the facts that follow from the
+        // assertions by ideal membership reasoning.
+        std::vector<Node> covAssertions = assertions;
+        d_divIdealSlv.getDerivedFacts(covAssertions);
+        d_covSlv.initLastCall(covAssertions);
+        if (d_im.hasPendingLemma())
+        {
+          d_divIdealSlv.sendDerivedLemmas();
+        }
+      }
+      break;
       case InferStep::NL_FACTORING:
         d_factoringSlv.check(assertions, false_asserts);
         break;
@@ -620,6 +640,7 @@ void NonlinearExtension::runStrategy(const std::vector<Node>& assertions,
         d_monomialBoundsSlv.init();
         d_monomialSlv.init(xts);
         break;
+      case InferStep::NL_DIV_IDEAL: d_divIdealSlv.check(assertions); break;
       case InferStep::NL_FLATTEN_MON:
       {
         std::vector<Node>& mvec = d_extState.d_ms_vars;

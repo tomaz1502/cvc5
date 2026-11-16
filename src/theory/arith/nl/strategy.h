@@ -66,6 +66,8 @@ enum class InferStep
 
   /** Initialize the NL solver */
   NL_INIT,
+  /** Nl ideal membership lemmas for integer division and modulus */
+  NL_DIV_IDEAL,
   /** Nl factoring lemmas */
   NL_FACTORING,
   /** Nl monomial equality propagation by flattening */
